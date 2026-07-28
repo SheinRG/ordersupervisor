@@ -1,0 +1,22 @@
+# secrets
+.env
+*.env
+!.env.example
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+api/.local/
+
+# node
+node_modules/
+.next/
+next-env.d.ts
+
+# temporal dev server state
+.temporal/
+
+# os
+Thumbs.db
+.DS_Store

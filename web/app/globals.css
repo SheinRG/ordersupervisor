@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* The UI commits to a single light theme on purpose: the assignment says
+   polish is not required, and a fixed theme keeps the demo video legible.
+   The scaffold's prefers-color-scheme block is removed for the same reason —
+   it would flip the palette out from under the recording. */
+
+html {
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+}
+
+pre,
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
