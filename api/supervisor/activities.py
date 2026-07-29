@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import asdict
+from typing import Awaitable, Callable, TypeVar
 
 from temporalio import activity
 
@@ -25,6 +26,17 @@ from .models import (
 )
 
 _agent: Agent | None = None
+_fallback_agent = ScriptedAgent()
+
+# Keep in sync with workflow._LLM_RETRY.maximum_attempts. On the last allowed
+# attempt, a provider failure (bad-gateway, schema-validation reject, etc.)
+# falls back to the scripted agent instead of failing the whole workflow —
+# ScriptedAgent's docstring already promises this; this is where it's wired
+# up. Earlier attempts still raise, so Temporal's normal retry/backoff
+# handles ordinary transient errors (rate limits) first.
+_MAX_LLM_ATTEMPTS = 6
+
+_T = TypeVar("_T")
 
 
 def get_agent() -> Agent:
@@ -49,6 +61,27 @@ def agent_name() -> str:
     return getattr(get_agent(), "name", "unknown")
 
 
+async def _with_fallback(
+    label: str, primary: Callable[[], Awaitable[_T]], fallback: Callable[[], Awaitable[_T]]
+) -> _T:
+    agent = get_agent()
+    if agent is _fallback_agent:
+        return await primary()  # already scripted; nothing to fall back to
+    try:
+        return await primary()
+    except Exception as exc:
+        if activity.info().attempt < _MAX_LLM_ATTEMPTS:
+            raise  # let Temporal retry with backoff first
+        activity.logger.warning(
+            "agent '%s' (%s) failed on final attempt; falling back to scripted "
+            "agent so the run doesn't stall: %s",
+            label,
+            agent.name,
+            exc,
+        )
+        return await fallback()
+
+
 # --------------------------------------------------------------------------
 # Agent activities
 # --------------------------------------------------------------------------
@@ -58,17 +91,29 @@ def agent_name() -> str:
 async def agent_classify(
     event: OrderEvent, aggressiveness: str, guidance: str
 ) -> WakeDecision:
-    return await get_agent().classify(event, aggressiveness, guidance)
+    return await _with_fallback(
+        "classify",
+        lambda: get_agent().classify(event, aggressiveness, guidance),
+        lambda: _fallback_agent.classify(event, aggressiveness, guidance),
+    )
 
 
 @activity.defn
 async def agent_decide(payload: AgentInput) -> AgentDecision:
-    return await get_agent().decide(payload)
+    return await _with_fallback(
+        "decide",
+        lambda: get_agent().decide(payload),
+        lambda: _fallback_agent.decide(payload),
+    )
 
 
 @activity.defn
 async def agent_finalize(payload: AgentInput, reason: str) -> FinalOutput:
-    return await get_agent().finalize(payload, reason)
+    return await _with_fallback(
+        "finalize",
+        lambda: get_agent().finalize(payload, reason),
+        lambda: _fallback_agent.finalize(payload, reason),
+    )
 
 
 # --------------------------------------------------------------------------

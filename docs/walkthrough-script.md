@@ -8,8 +8,11 @@ running order that hits all of them in ~6 minutes without dead air.
 - All four services up (see README). One worker only.
 - Two browser windows: the app on `:3000`, Temporal's UI on `:8233`.
 - Supervisor template `default` — `time_scale=3600`, so 6 business hours = 6s.
-- Decide your agent mode. `scripted` is reliable; `grok` is more impressive.
-  If using Grok, do a throwaway run first to confirm the key works.
+- Decide your agent mode. `scripted` is reliable; `grok`/`groq` are more
+  impressive. If using a real provider, do a throwaway run first to confirm
+  the key and model both work end to end (including `finalize`, which has a
+  larger output than `classify`/`decide` and is the one most likely to hit a
+  structured-output validation error on a smaller model).
 - **Don't leave a run idle for 12+ real minutes mid-recording** — the max-age
   rule will complete it out from under you.
 

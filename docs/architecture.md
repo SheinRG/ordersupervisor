@@ -147,19 +147,27 @@ class Agent(Protocol):
     async def finalize(self, payload: AgentInput, reason) -> FinalOutput
 ```
 
-Two implementations: `ScriptedAgent` (deterministic rules, no network) and
-`GrokAgent` (xAI, JSON-schema structured outputs). `AGENT_MODE` selects one at
-worker startup.
+Three implementations: `ScriptedAgent` (deterministic rules, no network),
+`GrokAgent` (xAI) and `GroqAgent` (Groq — groq.com, a different company from
+xAI despite the name), both using JSON-schema structured outputs. `AGENT_MODE`
+selects one at worker startup.
 
 This is not just testing hygiene. It means the orchestration can be developed
 and demonstrated without spending a token, the system stays demonstrable if a
 provider is rate-limited, and a reviewer with no API key can still run it.
 
-`GrokAgent` uses strict JSON-schema structured outputs, so the decision object
-is guaranteed to match the shape the workflow executes — no defensive JSON
-repair. The workflow additionally clamps `next_wake_seconds` to [5 min, 7 days]
-and filters actions against the template's enabled list, because a schema
-guarantees *shape*, not *sense*.
+`GrokAgent`/`GroqAgent` use strict JSON-schema structured outputs, so the
+decision object is guaranteed to match the shape the workflow executes — no
+defensive JSON repair. The workflow additionally clamps `next_wake_seconds` to
+[5 min, 7 days] and filters actions against the template's enabled list,
+because a schema guarantees *shape*, not *sense*.
+
+Structured-output generation can still fail validation occasionally (observed
+on Groq's smaller models under strict mode) — a real LLM is not a type
+checker. `activities.py` catches this: on the *last* retry attempt for an
+agent call, instead of failing the whole workflow it falls back to
+`ScriptedAgent`, so a run always produces a valid decision and, critically, a
+final summary — never a `WorkflowExecutionFailed` with no end-of-run output.
 
 ## Demo time compression
 

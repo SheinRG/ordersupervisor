@@ -6,7 +6,7 @@ agent reasons, acts through business actions, updates memory, sleeps, and
 wakes again — on a schedule or when something important happens.
 
 **Stack:** Next.js (App Router) + Tailwind · FastAPI · Temporal Python SDK ·
-PostgreSQL (Supabase) · xAI Grok
+PostgreSQL (Supabase) · xAI Grok or Groq (pluggable, see `AGENT_MODE` below)
 
 ---
 
@@ -32,8 +32,9 @@ file** for storage. Fill it in to enable the real LLM and Postgres:
 
 | Variable | Effect if unset |
 |---|---|
-| `AGENT_MODE` | defaults to `scripted` |
+| `AGENT_MODE` | defaults to `scripted`. Also accepts `grok` (xAI) or `groq` (groq.com — note these are different companies) |
 | `XAI_API_KEY` | required only when `AGENT_MODE=grok` |
+| `GROQ_API_KEY` | required only when `AGENT_MODE=groq`. On Groq, structured outputs (`response_format: json_schema`) only work on the `openai/gpt-oss-*` models today — see `api/.env.example` |
 | `DATABASE_URL` | falls back to `api/.local/fallback.db` (SQLite) |
 
 For Postgres, apply the schema once:
@@ -133,6 +134,7 @@ api/
     activities.py   every side effect: agent calls, actions, persistence
     agent.py        Agent protocol + ScriptedAgent (deterministic)
     grok.py         GrokAgent — xAI with JSON-schema structured outputs
+    groq.py         GroqAgent — Groq (groq.com) with JSON-schema structured outputs
     models.py       shared dataclasses
     db.py           Postgres, with a SQLite fallback
   app/main.py       FastAPI
