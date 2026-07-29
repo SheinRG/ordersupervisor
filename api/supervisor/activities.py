@@ -36,6 +36,10 @@ def get_agent() -> Agent:
             from .grok import GrokAgent  # imported lazily; needs XAI_API_KEY
 
             _agent = GrokAgent()
+        elif mode == "groq":
+            from .groq import GroqAgent  # imported lazily; needs GROQ_API_KEY
+
+            _agent = GroqAgent()
         else:
             _agent = ScriptedAgent()
     return _agent

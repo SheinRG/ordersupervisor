@@ -6,8 +6,11 @@ Everything that reasons sits behind `Agent`. Two implementations exist:
                    developing the workflow without spending tokens, and as the
                    fallback if the LLM provider is rate-limited or down.
   GrokAgent      — xAI Grok with JSON-schema structured outputs (grok.py).
+  GroqAgent      — Groq (groq.com) with JSON-schema structured outputs
+                   (groq.py). Same OpenAI-compatible shape as GrokAgent, just
+                   a different provider — don't confuse the two.
 
-Selected at worker startup via AGENT_MODE=scripted|grok. Because the workflow
+Selected at worker startup via AGENT_MODE=scripted|grok|groq. Because the workflow
 only ever sees this interface, swapping implementations changes nothing about
 the orchestration.
 """

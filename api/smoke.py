@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import sys
 import uuid
+from dataclasses import asdict
 
 from dotenv import load_dotenv
 
@@ -21,7 +22,7 @@ from temporalio.client import Client
 
 load_dotenv()
 
-from supervisor import TASK_QUEUE, workflow_id_for  # noqa: E402
+from supervisor import TASK_QUEUE, db, workflow_id_for  # noqa: E402
 from supervisor.models import OrderContext, OrderEvent, SupervisorConfig  # noqa: E402
 from supervisor.workflow import OrderSupervisorWorkflow, RunParams  # noqa: E402
 
@@ -47,19 +48,46 @@ async def main() -> None:
         default_wake_seconds=6 * 3600,
     )
 
+    order = OrderContext(
+        order_id=order_id,
+        customer_name="Priya Raman",
+        items=["Mechanical keyboard", "USB-C hub"],
+        total=184.50,
+    )
+
+    # Mirror what POST /api/runs does: a run row must exist before the
+    # workflow starts, since activities (persist_activity, persist_run_state)
+    # write against its foreign key. smoke.py talks to Temporal directly, so
+    # it has to do this bookkeeping itself.
+    supervisor_id = "smoke-test"
+    await db.upsert_supervisor(
+        {
+            "id": supervisor_id,
+            "name": config.name,
+            "base_instruction": config.base_instruction,
+            "enabled_actions": config.enabled_actions,
+            "default_wake_seconds": config.default_wake_seconds,
+            "model": config.model,
+            "classifier_model": config.classifier_model,
+            "wake_aggressiveness": config.wake_aggressiveness,
+            "time_scale": config.time_scale,
+            "max_age_seconds": config.max_age_seconds,
+        }
+    )
+    await db.create_run(
+        {
+            "id": run_id,
+            "supervisor_id": supervisor_id,
+            "order_id": order_id,
+            "workflow_id": workflow_id_for(order_id),
+            "order_context": asdict(order),
+        }
+    )
+
     banner(f"starting supervisor for {order_id}")
     handle = await client.start_workflow(
         OrderSupervisorWorkflow.run,
-        RunParams(
-            run_id=run_id,
-            order=OrderContext(
-                order_id=order_id,
-                customer_name="Priya Raman",
-                items=["Mechanical keyboard", "USB-C hub"],
-                total=184.50,
-            ),
-            config=config,
-        ),
+        RunParams(run_id=run_id, order=order, config=config),
         id=workflow_id_for(order_id),
         task_queue=TASK_QUEUE,
     )

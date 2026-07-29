@@ -17,6 +17,7 @@ import asyncio
 import json
 import os
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -215,10 +216,11 @@ async def create_run(run: dict[str, Any]) -> None:
 
 
 async def update_run_state(run_id: str, state: dict[str, Any]) -> None:
+    next_wake_raw = state.get("next_wake_at", "") or None
     values = (
         state.get("status", "running"),
         state.get("memory_summary", ""),
-        state.get("next_wake_at", "") or None,
+        next_wake_raw,
         state.get("next_wake_business_seconds", 0),
         state.get("business_age_seconds", 0),
         state.get("wake_count", 0),
@@ -239,6 +241,11 @@ async def update_run_state(run_id: str, state: dict[str, Any]) -> None:
             run_id,
         )
         return
+    # asyncpg needs a real datetime for a timestamptz parameter — an ISO
+    # string fails at bind time even with an explicit ::timestamptz cast,
+    # because the cast only affects how Postgres types the placeholder, not
+    # what asyncpg accepts as the Python value for it.
+    next_wake_dt = datetime.fromisoformat(next_wake_raw) if next_wake_raw else None
     await p.execute(
         """
         update runs set
@@ -250,7 +257,10 @@ async def update_run_state(run_id: str, state: dict[str, Any]) -> None:
         where id = $1
         """,
         run_id,
-        *values,
+        values[0],
+        values[1],
+        next_wake_dt,
+        *values[3:],
     )
 
 
